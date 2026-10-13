@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>I Built the Leasing Agent I Needed, Then Ran It Like Production Infrastructure</title>
+<meta name="description" content="How I built a bilingual (English/Spanish) AI leasing voice agent for a multifamily building, and ran it like production infrastructure: call flow, real costs, latency and observability.">
+<meta name="author" content="Srinivasa Myneni">
+<meta property="og:type" content="article">
+<meta property="og:title" content="I Built the Leasing Agent I Needed, Then Ran It Like Production Infrastructure">
+<meta property="og:description" content="How I built a bilingual (English/Spanish) AI leasing voice agent for a multifamily building, and ran it like production infrastructure: call flow, real costs, latency and observability.">
+<meta property="og:image" content="https://mynenisr.github.io/ai-leasing-agent/images/0_call_flow_diagram.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{--ink:#1b2430;--muted:#5b6778;--accent:#0f8aa8;--line:#e3e8ef;--bg:#ffffff;--soft:#f5f8fb}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif}
+header.hero{background:#0d1522;color:#f4f7fb;padding:56px 20px 40px}
+.wrap{max-width:760px;margin:0 auto;padding:0 20px}
+.kicker{font:600 13px/1 "IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.25em;color:#5cc8e8;text-transform:uppercase}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.15;margin:14px 0 16px;letter-spacing:-.02em}
+.byline{color:#aab6c6;font-size:16px}
+.byline a{color:#5cc8e8}
+main{padding:36px 0 64px}
+h2{font-size:clamp(23px,3.2vw,29px);line-height:1.25;margin:2.2em 0 .5em;letter-spacing:-.01em}
+p{margin:0 0 1.05em}
+ul,ol{margin:0 0 1.2em;padding-left:1.3em}
+li{margin:.3em 0}
+a{color:var(--accent)}
+strong{font-weight:700}
+figure{margin:2em -20px;}
+figure img{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--line)}
+figcaption{font-size:15px;color:var(--muted);text-align:center;margin-top:.6em;padding:0 20px}
+@media(min-width:900px){figure.wide{margin-left:-90px;margin-right:-90px}}
+.tbl{overflow-x:auto;margin:1.2em 0 1.6em}
+table{border-collapse:collapse;width:100%;font-size:16px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line)}
+th{background:var(--soft);font-weight:700}
+.ph{background:#fff3c4;border-radius:4px;padding:0 4px}
+.cta{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin-top:2.4em}
+.cta p:last-child{margin:0}
+footer{border-top:1px solid var(--line);color:var(--muted);font-size:15px;padding:24px 0 48px}
+@media(max-width:600px){body{font-size:17px} header.hero{padding:40px 16px 28px} figure{margin:1.6em -12px}}
+</style>
+</head>
+<body>
+<header class="hero"><div class="wrap">
+<div class="kicker">Voice AI · Property Management · SRE</div>
+<h1>I Built the Leasing Agent I Needed, Then Ran It Like Production Infrastructure</h1>
+<div class="byline">By Srinivasa Myneni · <a href="https://www.linkedin.com/in/mynenis">linkedin.com/in/mynenis</a></div>
+</div></header>
+<main><div class="wrap">
+<p>If you manage rentals, you know the calls. "How much is the two-bedroom?" "What's the square footage?" "Are utilities included?" "Do you take cats?" "What credit score do I need?" "Is there parking?"</p>
+<p>Every prospect deserves a clear answer. But a leasing agent can spend hours a week answering the same ten of them. The calls that come in at 9:40 p.m. often go to voicemail and never call back. And not every agent speaks Spanish, so some of your most interested prospects never get a real conversation.</p>
+<p>I've spent over 25 years in SRE, DevOps and systems administration, and about 15 years as a residential real estate agent, with around 75 buy and sell transactions. Today I manage multifamily rentals full time. So I did what an operator with an infrastructure background does: I built the tool I needed, and I ran it like a production service.</p>
+<h2>What I built</h2>
+<p>It's a bilingual (English and Spanish) AI leasing voice agent that answers prospect calls for a 16-unit building in Philadelphia I manage: eight one-bedrooms and eight two-bedrooms.</p>
+<p>It answers the basics 24/7:</p>
+<ul>
+<li>Rent and utilities</li>
+<li>Availability</li>
+<li>Pets and parking</li>
+<li>Qualification requirements (credit and income)</li>
+<li>Heat</li>
+<li>The application process and self-guided tour links</li>
+<li>Maintenance and rent portal info, plus emergency contacts</li>
+</ul>
+<h2>How a call flows</h2>
+<figure class="wide"><a href="images/0_call_flow_diagram.png"><img src="images/0_call_flow_diagram.png" alt="How a call flows: language menu, speech-to-text, model, voice, then a structured handoff to a person" loading="lazy"></a><figcaption>How a call flows: language menu, speech-to-text, model, voice, then a structured handoff to a person</figcaption></figure>
+<p>Callers hear: <strong>"For English, press one. Para español, oprima dos."</strong> They can also just say "español," or start speaking Spanish, and the agent switches.</p>
+<p>Next comes a short building overview, which the caller can interrupt at any time. Then it asks, "Is there a specific area you'd like to know more about?"</p>
+<p>If the caller is interested, the agent collects and confirms their name, email (spelled back letter by letter), callback number and best time to reach them. It never reads a URL aloud. It emails the showing and application links instead.</p>
+<p>Finally, qualified prospects are handed to a human leasing agent with a structured summary: name, contact info, unit interest, move-in timing, the questions they asked and their language preference.</p>
+<h2>The two benefits that matter most</h2>
+<p><strong>1. It gives agents their time back.</strong> The agent pre-informs and pre-qualifies. By the time a person calls back, the prospect already knows the rent, the pet policy and the income requirement. The human conversation starts at the next level: "When would you like to see it?" not "How much is it?"</p>
+<p>An illustrative example, not a measurement: if an agent fields 20 basic calls a week at 8 minutes each, that's about 2.7 hours a week spent repeating the same answers.</p>
+<p><strong>2. It reaches people your team can't.</strong> Not every agent is bilingual. Now every Spanish-speaking caller gets the same complete, patient answers as an English-speaking caller, at any hour. And the same design can extend to more languages.</p>
+<h2>Built as a template, not a one-off</h2>
+<p>The agent refers to "Property Management" rather than a person's name, so nothing is hard-wired to one building or one employee. A fill-in questionnaire (about 20 minutes, mostly checkboxes) captures a new property's details, and the same agent is cloned for other multifamily properties.</p>
+<p>A California property is next, which brings a compliance lesson: California requires all-party consent for call recording, so that version needs a recording notice up front. Templates have to carry legal differences, not just rents.</p>
+<p>Two rules apply everywhere:</p>
+<ul>
+<li><strong>Fair housing:</strong> every caller gets the same answers. No steering.</li>
+<li><strong>Consent:</strong> outbound calls and texts only with consent, with TCPA compliance and A2P 10DLC registration for texting.</li>
+</ul>
+<h2>What it costs</h2>
+<p>Before launch, I budgeted from published pricing (checked October 8, 2026):</p>
+<div class="tbl"><table><thead><tr><th>Component</th><th>Budgeted per minute</th></tr></thead><tbody><tr><td>Vapi platform</td><td>~$0.05</td></tr><tr><td>Grok voice (TTS)</td><td>~$0.08</td></tr><tr><td>Deepgram multilingual STT</td><td>~$0.0095</td></tr><tr><td>Twilio inbound</td><td>~$0.0085</td></tr><tr><td>LLM tokens</td><td>varies</td></tr><tr><td><strong>All-in</strong></td><td><strong>~$0.15 budgeted; ~$0.11 measured</strong></td></tr></tbody></table></div>
+<p><strong>I budgeted $0.15 a minute; real early calls came in around $0.11 a minute.</strong> My first 6 test calls (October 6–7, early versions v4–v9, before the bilingual v10) ran 16.70 minutes for $1.91 total: $0.32 per call on average, with an average call of about 2 minutes 47 seconds. These are early test calls, a small sample, not production traffic.</p>
+<p>At budget, 300 minutes a month is about $45, plus about $1.15 a month for the phone number. Going bilingual adds roughly 1.5 to 3 cents per minute.</p>
+<h2>The stack, and the lessons</h2>
+<ul>
+<li><strong>Vapi</strong> for voice agent orchestration</li>
+<li><strong>xAI Grok</strong> as the LLM (Grok 4.20 non-reasoning, chosen for low latency) and Grok text-to-speech for the voice</li>
+<li><strong>Deepgram Nova 3 multilingual</strong> for speech-to-text</li>
+<li><strong>Twilio</strong> for the phone number, with keypad (DTMF) input</li>
+<li><strong>Structured outputs</strong> for the lead summary</li>
+</ul>
+<p>The biggest lesson: <strong>bilingual is a speech-to-text decision, not just a prompt decision.</strong> The original transcriber was English-only. I could tell the model to speak Spanish all day, but if the transcriber can't hear Spanish, the agent can't understand the caller. Switching to a multilingual STT model was the real fix.</p>
+<p>The second lesson: <strong>treat prompts like code.</strong> The system prompt is about 50,000 characters, with explicit hard rules. Every change ships as a named version (I'm on v10), and I keep a saved rollback config. Before publishing, I run test calls as a regression suite: press 1, press 2, say "español," stay silent, start in Spanish. If any one breaks, the version doesn't ship.</p>
+<h2>Observability: the SRE part</h2>
+<p>Vapi's call logs give per-call cost and latency breakdowns plus full transcripts. Here's what I watch:</p>
+<ul>
+<li><strong>Cost</strong> per call and per minute, with alerts on cost spikes</li>
+<li><strong>Average call duration</strong> and <strong>how calls ended</strong></li>
+<li><strong>Turn latency:</strong> end of the caller's speech to the start of the agent's, broken down by transcriber, LLM and voice</li>
+<li><strong>Interruption (barge-in) rate</strong>, fallback and error rates, and language split</li>
+<li><strong>Lead capture rate:</strong> calls ending with a valid email and phone number</li>
+</ul>
+<p>The next metric I'm adding is <strong>containment rate</strong>: calls fully answered without a human. I haven't measured it yet.</p>
+<p>One practical note: Vapi's free call-log retention is 14 days. If you want history, export your logs.</p>
+<figure class="wide"><a href="images/1_calls_cost_dashboard_redacted.png"><img src="images/1_calls_cost_dashboard_redacted.png" alt="Call volume, minutes and spend, first test week" loading="lazy"></a><figcaption>Call volume, minutes and spend, first test week</figcaption></figure>
+<h2>Latency: my honest baseline</h2>
+<p>In natural conversation, people typically leave gaps of only a few hundred milliseconds between turns (Stivers et al., PNAS, 2009). Jakob Nielsen's classic usability guidance puts about 1 second as the limit before a delay interrupts a person's flow of thought.</p>
+<p>My baseline is slower than that. On the longest early test call (6 minutes 21 seconds, 29 turns), <strong>the average turn took 2,223 ms</strong>, and individual turns ranged from 1,696 to 2,520 ms. Where the time went, on average:</p>
+<ul>
+<li>Transcriber: 1,073 ms (about 48%)</li>
+<li>LLM: 592 ms</li>
+<li>Voice: 414 ms</li>
+<li>Endpointing: 104 ms</li>
+<li>Transport: 20 ms in, 50 ms out</li>
+</ul>
+<figure class="wide"><a href="images/5_latency_bar.png"><img src="images/5_latency_bar.png" alt="Where the 2.2 seconds go: average per-turn latency on the longest early test call" loading="lazy"></a><figcaption>Where the 2.2 seconds go: average per-turn latency on the longest early test call</figcaption></figure>
+<figure><a href="images/2_latency_breakdown.png"><img src="images/2_latency_breakdown.png" alt="Per-turn latency: transcriber, model, voice" loading="lazy"></a><figcaption>Per-turn latency: transcriber, model, voice</figcaption></figure>
+<p>That's not where I want it, and that's the point of measuring. Every choice spends from the latency budget: prompt size, model choice (non-reasoning for speed), endpointing (too long feels sluggish, too short cuts people off) and voice caching. Set an SLO the way you would for any service, such as "p95 turn latency under X ms," and measure against it after every release.</p>
+<h2>What the dashboards told me</h2>
+<p>That same call cost $0.82: LLM $0.37 (45%), Vapi platform $0.32 (39%), TTS $0.09 (11%) and STT $0.04 (5%). It used 293,019 prompt tokens, 0 cached tokens, 1,179 completion tokens and 5,953 TTS characters. Across all 6 calls there were 0 errors (0 in 4,676 log lines on the longest call).</p>
+<figure><a href="images/3_per_call_cost_breakdown.png"><img src="images/3_per_call_cost_breakdown.png" alt="Where a call&#x27;s cost goes" loading="lazy"></a><figcaption>Where a call's cost goes</figcaption></figure>
+<p>Four findings, and what I changed:</p>
+<ol>
+<li><strong>The transcriber was the biggest latency chunk.</strong> That was the English-only xAI transcriber. Version 10 replaced it with Deepgram Nova 3 multilingual, so I'm re-measuring.</li>
+<li><strong>The LLM was 45% of cost</strong> because the large system prompt is resent every turn, with 0 cached tokens. Prompt caching or trimming the prompt is my biggest cost lever.</li>
+<li><strong>2 of 6 calls ended on silence timeouts</strong> (the other 4 callers hung up normally). Version 10 added idle "Are you still there?" nudges.</li>
+<li><strong>Transcripts showed the gaps.</strong> The agent deferred on "Is there a rooftop?" and repeated an answer word for word when re-asked. Dashboards show you where to look; reading transcripts shows you what to fix.</li>
+</ol>
+<figure><a href="images/4_call_ended_reasons.png"><img src="images/4_call_ended_reasons.png" alt="How calls ended: hang-ups vs. silence timeouts" loading="lazy"></a><figcaption>How calls ended: hang-ups vs. silence timeouts</figcaption></figure>
+<h2>What's next</h2>
+<ul>
+<li>More languages</li>
+<li>After-hours maintenance triage</li>
+<li>CRM integration, so lead summaries land where the leasing team already works</li>
+<li>More properties, starting with California</li>
+</ul>
+<h2>Want one for your property?</h2>
+<p>I built this for my own building. Now I'm opening it up to other property managers. You get:</p>
+<ul>
+<li>Your own bilingual (English/Spanish) leasing line, set up from a 20-minute questionnaire</li>
+<li>Answers to prospect questions 24/7, including after hours</li>
+<li>Lead summaries delivered to your inbox: name, contact, unit interest, move-in timing, questions asked and language preference</li>
+<li>The same tested template, customized to your building's rents, policies and links</li>
+</ul>
+<p><strong>The offer:</strong> the first 10 property managers get it free, with setup and service at no cost for the first <span class="ph">[3 months]</span>. After that, simple monthly pricing starts at <span class="ph">[$149/month]</span>.</p>
+<p>If you'd like one, comment "DEMO" below or send me a DM. You can also hear it for yourself by calling 445-256-RENT, (445) 256-7368 (press two to try it in Spanish). You can also see what else I'm building at <a href="https://excitere.ai">excitere.ai</a>, an AI HomeFix concierge.</p>
+<p>The goal was never to replace leasing agents. It's to let them spend their time on the conversations that actually need a person.</p>
+<div class="cta"><p><strong>Hear it yourself:</strong> call <a href="tel:+14452567368">445-256-RENT</a>, (445) 256-7368. Press 2 for Spanish.</p><p>Questions, or want one for your property? <a href="https://www.linkedin.com/in/mynenis">Connect with me on LinkedIn</a>.</p></div>
+</div></main>
+<footer><div class="wrap">© 2026 Srinivasa Myneni. Cost and latency figures are from early test calls (October 2026), a small sample, not production traffic.</div></footer>
+</body></html>
